@@ -1,0 +1,20 @@
+{
+  "name": "course-sniper-api",
+  "version": "1.0.0",
+  "description": "Course sniper API with Puppeteer",
+  "main": "server/server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "puppeteer": "^24.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
