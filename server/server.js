@@ -2,10 +2,13 @@ import express from 'express';
 import puppeteer from 'puppeteer';
 import cors from 'cors';
 import 'dotenv/config';
+import dotenv from 'dotenv'
+
+dotenv.config()
 
 const app = express();
 const port = process.env.PORT || 3002;
-
+const URL = process.env.SCHOOL_URL
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -42,7 +45,7 @@ app.post('/api/courses', async (req, res) => {
     // Navigate to course search
     try {
       await page.goto(
-        `https://selfservice.kean.edu/Student/Courses/Search?keyword=${name}`,
+        `${URL}?keyword=${name}`,
         {
           waitUntil: "domcontentloaded",
           timeout: 30000
