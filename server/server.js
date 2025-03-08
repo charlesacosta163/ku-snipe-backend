@@ -176,7 +176,7 @@ app.post('/api/courses', async (req, res) => {
       { timeout: 60000 }
     );
 
-    // Extract section data
+     // Extract section data
     const extractedData = await page.evaluate(() => {
       return Array.from(
         document.querySelectorAll(
@@ -205,16 +205,14 @@ app.post('/api/courses', async (req, res) => {
       });
     });
 
+    // Modify the sortedCoursesAndTerms to only include Fall and Spring terms
     let sortedCoursesAndTerms = [
       { term: "Fall 2024", sections: [] },
-      { term: "Winter 2024", sections: [] },
       { term: "Spring 2025", sections: [] },
-      { term: "Summer I 2025", sections: [] },
-      { term: "Summer II 2025", sections: [] },
       { term: "Fall 2025", sections: [] },
     ];
 
-    // Term constraints
+    // Term constraints - only include Fall and Spring
     const termConstraints = [
       {
         term: "Fall 2024",
@@ -224,31 +222,10 @@ app.post('/api/courses', async (req, res) => {
         },
       },
       {
-        term: "Winter 2024",
-        constraint: {
-          start: new Date(2024, 11, 23),
-          end: new Date(2025, 0, 10),
-        },
-      },
-      {
         term: "Spring 2025",
         constraint: {
           start: new Date(2025, 0, 13),
           end: new Date(2025, 4, 7),
-        },
-      },
-      {
-        term: "Summer I 2025",
-        constraint: {
-          start: new Date(2025, 4, 20),
-          end: new Date(2025, 5, 15),
-        },
-      },
-      {
-        term: "Summer II 2025",
-        constraint: {
-          start: new Date(2025, 6, 2),
-          end: new Date(2025, 7, 27),
         },
       },
       {
@@ -260,33 +237,69 @@ app.post('/api/courses', async (req, res) => {
       },
     ];
 
-    // Sort courses into terms
+    // Sort courses into terms with robust null checking
     extractedData.forEach((course) => {
-      const [start, end] = course.dates.split(" - ");
-
-      // Extract and normalize start date
-      const [startMonth, startDay, startYear] = start.split("/").map(Number);
-      const formattedStartYear = startYear < 100 ? 2000 + startYear : startYear;
-      const startDateFormat = new Date(formattedStartYear, startMonth - 1, startDay);
-
-      // Extract and normalize end date
-      const [endMonth, endDay, endYear] = end.split("/").map(Number);
-      const formattedEndYear = endYear < 100 ? 2000 + endYear : endYear;
-      const endDateFormat = new Date(formattedEndYear, endMonth - 1, endDay);
-
-      termConstraints.forEach((term, index) => {
-        if (startDateFormat >= term.constraint.start && endDateFormat <= term.constraint.end) {
-          sortedCoursesAndTerms[index].sections.push({
-            name: course.sectionName,
-            professor: course.professor,
-            seats: course.seats,
-            startDate: startDateFormat,
-            endDate: endDateFormat,
-          });
-        }
-      });
+      if (!course || !course.dates || typeof course.dates !== 'string' || course.dates === "No Date Info") {
+        return; // Skip courses with invalid dates
+      }
+      
+      try {
+        // Check if dates string has the expected format
+        if (!course.dates.includes(" - ")) return;
+        
+        const [start, end] = course.dates.split(" - ");
+        if (!start || !end) return;
+        
+        // Check if date parts are valid
+        const startParts = start.split("/");
+        const endParts = end.split("/");
+        if (startParts.length !== 3 || endParts.length !== 3) return;
+        
+        // Extract and normalize start date with null checking
+        const [startMonth, startDay, startYear] = startParts.map(part => {
+          const num = Number(part);
+          return isNaN(num) ? 0 : num;
+        });
+        
+        // Skip if any date part is invalid
+        if (startMonth === 0 || startDay === 0 || startYear === 0) return;
+        
+        const formattedStartYear = startYear < 100 ? 2000 + startYear : startYear;
+        const startDateFormat = new Date(formattedStartYear, startMonth - 1, startDay);
+        
+        // Extract and normalize end date with null checking
+        const [endMonth, endDay, endYear] = endParts.map(part => {
+          const num = Number(part);
+          return isNaN(num) ? 0 : num;
+        });
+        
+        // Skip if any date part is invalid
+        if (endMonth === 0 || endDay === 0 || endYear === 0) return;
+        
+        const formattedEndYear = endYear < 100 ? 2000 + endYear : endYear;
+        const endDateFormat = new Date(formattedEndYear, endMonth - 1, endDay);
+        
+        // Validate dates are valid Date objects
+        if (isNaN(startDateFormat.getTime()) || isNaN(endDateFormat.getTime())) return;
+        
+        termConstraints.forEach((term, index) => {
+          if (startDateFormat >= term.constraint.start && endDateFormat <= term.constraint.end) {
+            sortedCoursesAndTerms[index].sections.push({
+              name: course.sectionName || "Unknown Section",
+              professor: course.professor || "No Professor",
+              seats: course.seats || "No Seat Data",
+              startDate: startDateFormat,
+              endDate: endDateFormat,
+            });
+          }
+        });
+      } catch (dateError) {
+        console.error("Error processing course dates:", dateError);
+        // Continue to next course without adding this one
+      }
     });
 
+    // Filter out terms with no sections
     sortedCoursesAndTerms = sortedCoursesAndTerms.filter(e => e.sections.length > 0);
 
     res.json({
